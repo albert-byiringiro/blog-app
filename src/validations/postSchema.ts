@@ -19,4 +19,9 @@ export const createFormSchema = z.object({
   }).optional(),
 })
 
-export type PostFormValues = z.infer<typeof createFormSchema>
+export const updateFormSchema = createFormSchema.extend({
+  published: z.boolean().optional(),
+})
+
+export type CreatePostFormValues = z.infer<typeof createFormSchema>
+export type UpdatePostFormValues = z.infer<typeof updateFormSchema>

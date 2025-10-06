@@ -3,33 +3,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-
-async function getPosts() {
-  try {
-    const response = await fetch('http://localhost:3000/api/posts?published=true', {
-      cache: 'no-store',
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch posts')
-    }
-
-    const result = await response.json()
-    return result.data || []
-  } catch (error) {
-    console.error('Error fetching posts:', error)
-    return []
-  }
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
+import { formatDate } from '@/lib/utils'
+import { getPosts } from '@/lib/posts'
 
 export default async function BlogPage() {
   const posts = await getPosts()

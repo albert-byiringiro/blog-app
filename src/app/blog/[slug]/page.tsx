@@ -4,39 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { getPostBySlug } from '@/lib/posts'
+import { formatDate } from '@/lib/utils'
 
 type PageProps = {
   params: Promise<{ slug: string }>
-}
-
-async function getPostBySlug(slug: string) {
-  try {
-    const response = await fetch('http://localhost:3000/api/posts', {
-      cache: 'no-store',
-    })
-
-    if (!response.ok) {
-      return null
-    }
-
-    const result = await response.json()
-    const posts = result.data || []
-
-    const post = posts.find((p: any) => p.slug === slug)
-    return post || null
-  } catch (error) {
-    console.error('Error fetching post:', error)
-    return null
-  }
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
 }
 
 export default async function PostPage({ params }: PageProps) {
@@ -51,10 +23,15 @@ export default async function PostPage({ params }: PageProps) {
 
   return (
     <article className="container mx-auto px-4 py-12 max-w-4xl">
-      <div className="mb-8">
+      <div className="mb-8 flex gap-4">
         <Button variant="ghost" asChild>
           <Link href="/blog">
             ← Back to Blog
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link href={`/blog/${post.slug}/edit`}>
+            Edit Post
           </Link>
         </Button>
       </div>

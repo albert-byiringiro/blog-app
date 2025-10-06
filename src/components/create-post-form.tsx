@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { createFormSchema, PostFormValues } from '@/validations/postSchema'
+import { createFormSchema, CreatePostFormValues } from '@/validations/postSchema'
 
 // Hardcoded author ID for development
 const DEFAULT_AUTHOR_ID = '68e2189639f5a8ed7aeb60a3'
@@ -28,7 +28,7 @@ export function CreatePostForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Initialize form with react-hook-form
-  const form = useForm<PostFormValues>({
+  const form = useForm<CreatePostFormValues>({
     resolver: zodResolver(createFormSchema),
     defaultValues: {
       title: '',
@@ -59,7 +59,7 @@ export function CreatePostForm() {
     setManualSlugEdit(true)
   }
 
-  async function onSubmit(values: PostFormValues) {
+  async function onSubmit(values: CreatePostFormValues) {
     setIsSubmitting(true)
 
     try {
