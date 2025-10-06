@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -19,38 +17,19 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
+import { createFormSchema, PostFormValues } from '@/validations/postSchema'
 
 // Hardcoded author ID for development
 const DEFAULT_AUTHOR_ID = '68e2189639f5a8ed7aeb60a3'
 
-const formSchema = z.object({
-  title: z.string().min(3, {
-    message: 'Title must be at least 3 characters.',
-  }).max(100, {
-    message: 'Title must be less than 100 characters.',
-  }),
-  slug: z.string().min(3, {
-    message: 'Slug must be at least 3 characters.',
-  }).max(100).regex(/^[a-z0-9-]+$/, {
-    message: 'Slug must contain only lowercase letters, numbers, and hyphens.',
-  }),
-  content: z.string().min(10, {
-    message: 'Content must be at least 10 characters.',
-  }),
-  excerpt: z.string().max(200, {
-    message: 'Excerpt must be less than 200 characters.',
-  }).optional(),
-})
-
-type FormValues = z.infer<typeof formSchema>
 
 export function CreatePostForm() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Initialize form with react-hook-form
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<PostFormValues>({
+    resolver: zodResolver(createFormSchema),
     defaultValues: {
       title: '',
       slug: '',
@@ -80,7 +59,7 @@ export function CreatePostForm() {
     setManualSlugEdit(true)
   }
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: PostFormValues) {
     setIsSubmitting(true)
 
     try {
