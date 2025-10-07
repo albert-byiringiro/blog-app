@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { getPostBySlug } from '@/lib/posts'
 import { formatDate } from '@/lib/utils'
+import { DeletePostButton } from '@/components/delete-post-button'
 
 type PageProps = {
   params: Promise<{ slug: string }>
@@ -34,6 +35,7 @@ export default async function PostPage({ params }: PageProps) {
             Edit Post
           </Link>
         </Button>
+        <DeletePostButton postId={post.id} postTitle={post.title} />
       </div>
 
       <header className="space-y-4 mb-8">
