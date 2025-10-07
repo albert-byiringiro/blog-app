@@ -19,7 +19,18 @@ export const createFormSchema = z.object({
   }).optional(),
 })
 
-export const updateFormSchema = createFormSchema.extend({
+export const updateFormSchema = z.object({
+  title: z.string().min(3, {
+    message: 'Title must be at least 3 characters.',
+  }).max(100, {
+    message: 'Title must be less than 100 characters.',
+  }).optional(),
+  content: z.string().min(10, {
+    message: 'Content must be at least 10 characters.',
+  }).optional(),
+  excerpt: z.string().max(200, {
+    message: 'Excerpt must be less than 200 characters.',
+  }).optional(),
   published: z.boolean().optional(),
 })
 
