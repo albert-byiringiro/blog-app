@@ -4,34 +4,57 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
-import { getPosts } from '@/lib/posts'
+import { getPosts, getSearchedPosts } from '@/lib/posts'
+import { SearchInput } from '@/components/search-input'
 
-export default async function BlogPage() {
-  const posts = await getPosts()
+type PageProps = {
+  searchParams: Promise<{
+    query?: string
+    page?: string
+  }>
+}
+
+export default async function BlogPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const query = params.query || ''
+
+  const posts = await getSearchedPosts(query)
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
-      <div className="space-y-4 mb-12">
+      <div className="space-y-4 mb-8">
         <h1 className="text-4xl font-bold tracking-tight">Blog Posts</h1>
         <p className="text-xl text-muted-foreground">
           Explore our latest articles and tutorials
         </p>
-        <Separator />
       </div>
 
-      <div className="mb-8">
+      <div className="flex gap-4 mb-8">
+        <div className="flex-1 max-w-md">
+          <SearchInput />
+        </div>
         <Button asChild>
-          <Link href="/blog/create">
-            Create New Post
-          </Link>
+          <Link href="/blog/create">Create New Post</Link>
         </Button>
       </div>
 
+      <Separator className="mb-8" />
+
+      {/* Search Results Info */}
+      {query && (
+        <p className="text-sm text-muted-foreground mb-4">
+          Found {posts.length} result{posts.length !== 1 ? 's' : ''} for "{query}"
+        </p>
+      )}
+
+      {/* Posts Grid */}
       {posts.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
-              No blog posts yet. Be the first to create one!
+              {query
+                ? `No posts found matching "${query}"`
+                : 'No blog posts yet. Be the first to create one!'}
             </p>
           </CardContent>
         </Card>
