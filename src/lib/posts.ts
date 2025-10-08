@@ -1,21 +1,3 @@
-export async function getPosts() {
-  try {
-    const response = await fetch('http://localhost:3000/api/posts?published=true', {
-      cache: 'no-store',
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch posts')
-    }
-
-    const result = await response.json()
-    return result.data || []
-  } catch (error) {
-    console.error('Error fetching posts:', error)
-    return []
-  }
-}
-
 export async function getPostBySlug(slug: string) {
   try {
     const response = await fetch('http://localhost:3000/api/posts', {
@@ -36,14 +18,15 @@ export async function getPostBySlug(slug: string) {
   }
 }
 
-export async function getSearchedPosts(query?: string) {
+export async function getPosts(query?: string, page: number = 1) {
   try {
     const url = new URL('http://localhost:3000/api/posts')
     url.searchParams.set('published', 'true')
-
+    url.searchParams.set('page', page.toString())
+    url.searchParams.set('limit', '9')
+    
     if (query) {
-      // In a real app, your API would filter by query
-      // For now, we'll filter client-side
+      url.searchParams.set('search', query)
     }
 
     const response = await fetch(url.toString(), {
@@ -55,16 +38,28 @@ export async function getSearchedPosts(query?: string) {
     }
 
     const result = await response.json()
-    let posts = result.data || []
 
-    if (query) {
-      const searchLower = query.toLowerCase()
-      posts = posts.filter((post: any) => post.title.toLowerCase().includes(searchLower) || post.content.toLowerCase().includes(searchLower))
+    return {
+      posts: result.data || [],
+      pagination: result.pagination || { 
+        page: 1, 
+        totalPages: 0, 
+        hasMore: false,
+        totalCount: 0,
+        limit: 9
+      },
     }
-
-    return posts
   } catch (error) {
-    console.error('Error fetching posts:', error);
-    return [];
+    console.error('Error fetching posts:', error)
+    return {
+      posts: [],
+      pagination: { 
+        page: 1, 
+        totalPages: 0, 
+        hasMore: false,
+        totalCount: 0,
+        limit: 9
+      },
+    }
   }
 }

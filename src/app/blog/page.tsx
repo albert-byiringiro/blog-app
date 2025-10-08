@@ -4,8 +4,9 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
-import { getPosts, getSearchedPosts } from '@/lib/posts'
+import { getPosts } from '@/lib/posts'
 import { SearchInput } from '@/components/search-input'
+import { PaginationControls } from '@/components/pagination-controls'
 
 type PageProps = {
   searchParams: Promise<{
@@ -17,8 +18,9 @@ type PageProps = {
 export default async function BlogPage({ searchParams }: PageProps) {
   const params = await searchParams
   const query = params.query || ''
+  const page = parseInt(params.page || '1')
 
-  const posts = await getSearchedPosts(query)
+  const { posts, pagination} = await getPosts(query, page)
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
@@ -93,6 +95,11 @@ export default async function BlogPage({ searchParams }: PageProps) {
           ))}
         </div>
       )}
+      <PaginationControls 
+        currentPage={pagination.page}
+        totalPages={pagination.totalPages}
+        hasMore={pagination.hasMore}
+      />
     </div>
   )
 }

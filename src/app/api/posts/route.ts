@@ -1,32 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// ============================================
-// GET /api/posts
-// Fetch all blog posts
-// ============================================
-/**
- * Fetches all blog posts from the database
- * 
- * Query Parameters (optional):
- * - ?published=true - Only fetch published posts
- * - ?authorId=xxx - Only fetch posts by specific author
- * 
- * Example usage:
- * - GET /api/posts → All posts
- * - GET /api/posts?published=true → Only published
- * - GET /api/posts?authorId=123 → Posts by author
- */
 export async function GET(request: NextRequest) {
   try {
-    // Extract query parameters from URL
-    // Example: /api/posts?published=true
     const searchParams = request.nextUrl.searchParams
     const published = searchParams.get('published')
     const authorId = searchParams.get('authorId')
+    const search = searchParams.get('search')
 
-    // Build Prisma query with filters
-    // Start with base query object
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '9')
+    const skip = (page - 1) * limit
+
     const where: any = {}
 
     // Add published filter if provided
@@ -37,6 +22,39 @@ export async function GET(request: NextRequest) {
     if (authorId) {
       where.authorId = authorId
     }
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim()
+
+      const words = searchTerm.split(/\s+/).filter(w => w.length > 0)
+
+      if (words.length === 1) {
+        where.OR = [
+          { title: { contains: searchTerm, mode: 'insensitive' } },
+          { content: { contains: searchTerm, mode: 'insensitive' } },
+          { excerpt: { contains: searchTerm, mode: 'insensitive' } },
+        ]
+      } else {
+        where.AND = [
+          {
+            OR: [
+              { title: { contains: searchTerm, mode: 'insensitive' } },
+              { content: { contains: searchTerm, mode: 'insensitive' } },
+              { excerpt: { contains: searchTerm, mode: 'insensitive' } },
+            ]
+          },
+          ...words.map(word => ({
+            OR: [
+              { title: { contains: word, mode: 'insensitive' } },
+              { content: { contains: word, mode: 'insensitive' } },
+              { excerpt: { contains: word, mode: 'insensitive' } },
+            ]
+          }))
+        ]
+      }
+    }
+
+    const totalCount = await prisma.post.count({ where })
 
     const posts = await prisma.post.findMany({
       where,
@@ -49,17 +67,30 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      // Order by newest first
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: search
+      ? [
+        // When searching, prioritize title matches
+        { title: 'asc'},
+        { createdAt: 'desc'},
+      ] : { createdAt: 'desc' },
+      skip,
+      take: limit,
     })
+
+    const totalPages = Math.ceil(totalCount / limit)
 
     return NextResponse.json(
       {
         success: true,
         count: posts.length,
         data: posts,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages,
+          hasMore: page < totalPages
+        }
       },
       { status: 200 }
     )

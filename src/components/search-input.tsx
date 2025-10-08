@@ -18,8 +18,10 @@ export function SearchInput() {
         
         if (term) {
             params.set('query', term)
+            params.delete('page')
         } else {
             params.delete('query')
+            params.delete('page')
         }
 
         replace(`${pathname}?${params.toString()}`)
