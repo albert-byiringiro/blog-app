@@ -1,12 +1,22 @@
+// src/app/api/posts/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuth, getOptionalUser } from '@/lib/auth-utils'
 
+/**
+ * GET /api/posts
+ * PUBLIC - Anyone can read published posts
+ * AUTHENTICATED - Authors can see their own drafts
+ * Returns filtered list based on query parameters
+ */
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const published = searchParams.get('published')
     const authorId = searchParams.get('authorId')
     const search = searchParams.get('search')
+    const includeUnpublished = searchParams.get('includeUnpublished') === 'true'
 
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '9')
@@ -14,10 +24,16 @@ export async function GET(request: NextRequest) {
 
     const where: any = {}
 
-    // Add published filter if provided
+    // Handle published filter
     if (published !== null) {
+      // Explicit published parameter provided
       where.published = published === 'true'
+    } else if (!includeUnpublished) {
+      // No explicit parameter and not requesting unpublished
+      // Default to published only for public access
+      where.published = true
     }
+    // If includeUnpublished=true and no published param, don't filter by published
 
     if (authorId) {
       where.authorId = authorId
@@ -25,7 +41,6 @@ export async function GET(request: NextRequest) {
 
     if (search && search.trim()) {
       const searchTerm = search.trim()
-
       const words = searchTerm.split(/\s+/).filter(w => w.length > 0)
 
       if (words.length === 1) {
@@ -68,11 +83,11 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: search
-      ? [
-        // When searching, prioritize title matches
-        { title: 'asc'},
-        { createdAt: 'desc'},
-      ] : { createdAt: 'desc' },
+        ? [
+            { title: 'asc' },
+            { createdAt: 'desc' },
+          ]
+        : { createdAt: 'desc' },
       skip,
       take: limit,
     })
@@ -108,25 +123,41 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * POST /api/posts
+ * PROTECTED - Requires authentication (AUTHOR or ADMIN)
+ * Creates a new blog post
+ */
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth()
+
+    if (user.role !== 'AUTHOR' && user.role !== 'ADMIN') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unauthorized',
+          message: 'You do not have permission to create posts',
+        },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
+    const { title, slug, content, excerpt, published } = body
 
-    const { title, slug, content, excerpt, published, authorId } = body
-
-    if (!title || !slug || !content || !authorId) {
+    if (!title || !slug || !content) {
       return NextResponse.json(
         {
           success: false,
           error: 'Missing required fields',
-          required: ['title', 'slug', 'content', 'authorId'],
+          required: ['title', 'slug', 'content'],
         },
-        { status: 400 } // 400 = Bad Request
+        { status: 400 }
       )
     }
 
-    // Validate that slug is URL-friendly
-    // Only lowercase letters, numbers, and hyphens
+    // Validate slug format
     const slugRegex = /^[a-z0-9-]+$/
     if (!slugRegex.test(slug)) {
       return NextResponse.json(
@@ -140,7 +171,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if slug already exists
-    // Slugs must be unique for URLs
     const existingPost = await prisma.post.findUnique({
       where: { slug },
     })
@@ -152,25 +182,11 @@ export async function POST(request: NextRequest) {
           error: 'Slug already exists',
           message: 'A post with this slug already exists',
         },
-        { status: 409 } // 409 = Conflict
+        { status: 409 }
       )
     }
 
-    const author = await prisma.user.findUnique({
-      where: { id: authorId },
-    })
-
-    if (!author) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Author not found',
-          message: 'The specified author does not exist',
-        },
-        { status: 404 }
-      )
-    }
-
+    // Create post with authenticated user as author
     const newPost = await prisma.post.create({
       data: {
         title,
@@ -178,7 +194,7 @@ export async function POST(request: NextRequest) {
         content,
         excerpt: excerpt || null,
         published: published || false,
-        authorId,
+        authorId: user.id,
       },
       include: {
         author: {
@@ -197,13 +213,22 @@ export async function POST(request: NextRequest) {
         message: 'Post created successfully',
         data: newPost,
       },
-      { status: 201 } // 201 = Created
+      { status: 201 }
     )
   } catch (error) {
     console.error('Error creating post:', error)
 
-    // Check if it's a Prisma unique constraint error
-    // This catches any unique field violations we missed
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unauthorized',
+          message: 'You must be signed in to create posts',
+        },
+        { status: 401 }
+      )
+    }
+
     if (error instanceof Error && error.message.includes('Unique constraint')) {
       return NextResponse.json(
         {

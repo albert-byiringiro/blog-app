@@ -1,11 +1,13 @@
+// src/app/api/posts/[id]/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuth, canEditPost } from '@/lib/auth-utils'
 
 type RouteContext = {
     params: Promise<{ id: string }>
 }
 
-// Helper function to get and validate the post ID
 async function getPostId(context: RouteContext): Promise<string | null> {
     try {
         const params = await context.params
@@ -22,6 +24,11 @@ async function getPostId(context: RouteContext): Promise<string | null> {
     }
 }
 
+/**
+ * GET /api/posts/[id]
+ * PUBLIC - Anyone can read published posts
+ * Returns single post by ID
+ */
 export async function GET(request: NextRequest, context: RouteContext) {
     try {
         const id = await getPostId(context)
@@ -61,6 +68,34 @@ export async function GET(request: NextRequest, context: RouteContext) {
             )
         }
 
+        // Allow viewing unpublished posts only if user is authenticated
+        // and has permission to edit the post
+        if (!post.published) {
+            try {
+                await requireAuth()
+                const canEdit = await canEditPost(post.authorId!)
+                if (!canEdit) {
+                    return NextResponse.json(
+                        {
+                            success: false,
+                            error: 'Post not found',
+                            message: 'This post is not published',
+                        },
+                        { status: 404 }
+                    )
+                }
+            } catch (error) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: 'Post not found',
+                        message: 'This post is not published',
+                    },
+                    { status: 404 }
+                )
+            }
+        }
+
         return NextResponse.json(
             {
                 success: true,
@@ -69,7 +104,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             { status: 200 }
         )
     } catch (error) {
-        console.error('Error fetching post:', error);
+        console.error('Error fetching post:', error)
 
         return NextResponse.json(
             {
@@ -79,12 +114,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
             },
             { status: 500 }
         )
-        
     }
 }
 
+/**
+ * PATCH /api/posts/[id]
+ * PROTECTED - Requires authentication and ownership
+ * Updates an existing post
+ */
 export async function PATCH(request: NextRequest, context: RouteContext) {
     try {
+        // Require authentication
+        const user = await requireAuth()
+
         const id = await getPostId(context)
 
         if (!id) {
@@ -98,16 +140,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         }
 
         const body = await request.json()
-
         const { title, content, excerpt, published } = body
 
         if (!title && !content && excerpt === undefined && published === undefined) {
             return NextResponse.json(
                 {
-                success: false,
-                error: 'No update fields provided',
-                message: 'Provide at least one field to update',
-                allowedFields: ['title', 'content', 'excerpt', 'published'],
+                    success: false,
+                    error: 'No update fields provided',
+                    message: 'Provide at least one field to update',
+                    allowedFields: ['title', 'content', 'excerpt', 'published'],
                 },
                 { status: 400 }
             )
@@ -120,17 +161,29 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         if (!existingPost) {
             return NextResponse.json(
                 {
-                success: false,
-                error: 'Post not found',
-                message: `No post found with ID: ${id}`,
+                    success: false,
+                    error: 'Post not found',
+                    message: `No post found with ID: ${id}`,
                 },
                 { status: 404 }
             )
         }
 
+        // Check if user has permission to edit this post
+        const canEdit = await canEditPost(existingPost.authorId!)
+        if (!canEdit) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'Unauthorized',
+                    message: 'You do not have permission to edit this post',
+                },
+                { status: 403 }
+            )
+        }
+
         // Build update data object
         const updateData: any = {}
-
         if (title !== undefined) updateData.title = title
         if (content !== undefined) updateData.content = content
         if (excerpt !== undefined) updateData.excerpt = excerpt
@@ -159,7 +212,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             { status: 200 }
         )
     } catch (error) {
-        console.error('Error updating post:', error);
+        console.error('Error updating post:', error)
+
+        if (error instanceof Error && error.message === 'Unauthorized') {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'Unauthorized',
+                    message: 'You must be signed in to update posts',
+                },
+                { status: 401 }
+            )
+        }
 
         return NextResponse.json(
             {
@@ -172,21 +236,28 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 }
 
+/**
+ * DELETE /api/posts/[id]
+ * PROTECTED - Requires authentication and ownership
+ * Deletes a post
+ */
 export async function DELETE(request: NextRequest, context: RouteContext) {
     try {
+        // Require authentication
+        await requireAuth()
+
         const id = await getPostId(context)
 
         if (!id) {
             return NextResponse.json(
                 {
-                success: false,
-                error: 'Invalid post ID format',
+                    success: false,
+                    error: 'Invalid post ID format',
                 },
                 { status: 400 }
             )
         }
 
-        // Check if post exists before deleting
         const existingPost = await prisma.post.findUnique({
             where: { id },  
         })
@@ -194,11 +265,24 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         if (!existingPost) {
             return NextResponse.json(
                 {
-                success: false,
-                error: 'Post not found',
-                message: `No post found with ID: ${id}`,
+                    success: false,
+                    error: 'Post not found',
+                    message: `No post found with ID: ${id}`,
                 },
                 { status: 404 }
+            )
+        }
+
+        // Check if user has permission to delete this post
+        const canEdit = await canEditPost(existingPost.authorId!)
+        if (!canEdit) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'Unauthorized',
+                    message: 'You do not have permission to delete this post',
+                },
+                { status: 403 }
             )
         }
 
@@ -219,6 +303,17 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         )
     } catch (error) {
         console.error('Error deleting post:', error)
+
+        if (error instanceof Error && error.message === 'Unauthorized') {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'Unauthorized',
+                    message: 'You must be signed in to delete posts',
+                },
+                { status: 401 }
+            )
+        }
 
         return NextResponse.json(
             {

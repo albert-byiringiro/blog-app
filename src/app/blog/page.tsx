@@ -1,3 +1,5 @@
+// src/app/blog/page.tsx
+
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +9,7 @@ import { formatDate } from '@/lib/utils'
 import { getPosts } from '@/lib/posts'
 import { SearchInput } from '@/components/search-input'
 import { PaginationControls } from '@/components/pagination-controls'
+import { getOptionalUser } from '@/lib/auth-utils'
 
 type PageProps = {
   searchParams: Promise<{
@@ -20,24 +23,31 @@ export default async function BlogPage({ searchParams }: PageProps) {
   const query = params.query || ''
   const page = parseInt(params.page || '1')
 
-  const { posts, pagination} = await getPosts(query, page)
+  const { posts, pagination } = await getPosts(query, page)
+  
+  // Check if user is authenticated and can create posts
+  const user = await getOptionalUser()
+  const canCreatePosts = user && (user.role === 'AUTHOR' || user.role === 'ADMIN')
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
       <div className="space-y-4 mb-8">
         <h1 className="text-4xl font-bold tracking-tight">Blog Posts</h1>
         <p className="text-xl text-muted-foreground">
-          Explore our latest articles and tutorials
+          Explore articles, tutorials, and thoughts
         </p>
       </div>
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row gap-4 mb-8">
         <div className="flex-1 max-w-md">
           <SearchInput />
         </div>
-        <Button asChild>
-          <Link href="/blog/create">Create New Post</Link>
-        </Button>
+        {/* Only show Create Post button if user can create posts */}
+        {canCreatePosts && (
+          <Button asChild>
+            <Link href="/blog/create">Create New Post</Link>
+          </Button>
+        )}
       </div>
 
       <Separator className="mb-8" />
@@ -56,7 +66,7 @@ export default async function BlogPage({ searchParams }: PageProps) {
             <p className="text-center text-muted-foreground">
               {query
                 ? `No posts found matching "${query}"`
-                : 'No blog posts yet. Be the first to create one!'}
+                : 'No blog posts available yet. Check back soon!'}
             </p>
           </CardContent>
         </Card>
@@ -71,8 +81,8 @@ export default async function BlogPage({ searchParams }: PageProps) {
               <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge variant={post.published ? 'default' : 'secondary'}>
-                      {post.published ? 'Published' : 'Draft'}
+                    <Badge variant="default">
+                      Published
                     </Badge>
                   </div>
                   <CardTitle className="line-clamp-2">{post.title}</CardTitle>
@@ -95,6 +105,7 @@ export default async function BlogPage({ searchParams }: PageProps) {
           ))}
         </div>
       )}
+      
       <PaginationControls 
         currentPage={pagination.page}
         totalPages={pagination.totalPages}

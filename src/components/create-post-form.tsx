@@ -1,7 +1,10 @@
+// src/components/create-post-form.tsx
+
 'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -18,16 +21,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { createFormSchema, CreatePostFormValues } from '@/validations/postSchema'
-
-// Hardcoded author ID for development
-const DEFAULT_AUTHOR_ID = '68e2189639f5a8ed7aeb60a3'
-
+import { Loader2 } from 'lucide-react'
 
 export function CreatePostForm() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Initialize form with react-hook-form
   const form = useForm<CreatePostFormValues>({
     resolver: zodResolver(createFormSchema),
     defaultValues: {
@@ -40,7 +40,6 @@ export function CreatePostForm() {
 
   const [manualSlugEdit, setManualSlugEdit] = useState(false)
   
-  // Auto-generate slug when title changes
   const generateSlug = (title: string) => {
     return title
       .toLowerCase()
@@ -60,6 +59,13 @@ export function CreatePostForm() {
   }
 
   async function onSubmit(values: CreatePostFormValues) {
+    // Check if user is authenticated
+    if (status !== 'authenticated' || !session) {
+      toast.error('You must be signed in to create posts')
+      router.push('/auth/signin')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -70,8 +76,7 @@ export function CreatePostForm() {
         },
         body: JSON.stringify({
           ...values,
-          published: false,
-          authorId: DEFAULT_AUTHOR_ID,
+          published: false, // Always create as draft initially
         }),
       })
 
@@ -84,13 +89,30 @@ export function CreatePostForm() {
 
       toast.success('Post created successfully!')
       
+      // Redirect to the newly created post
       router.push(`/blog/${result.data.slug}`)
+      router.refresh()
     } catch (error) {
       console.error('Error creating post:', error)
       toast.error('Something went wrong. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Show loading state while checking auth
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // Redirect if not authenticated
+  if (status === 'unauthenticated') {
+    router.push('/auth/signin')
+    return null
   }
 
   return (
@@ -107,6 +129,7 @@ export function CreatePostForm() {
                   placeholder="Enter post title..."
                   {...field}
                   onChange={(e) => handleTitleChange(e.target.value)}
+                  disabled={isSubmitting}
                 />
               </FormControl>
               <FormDescription>
@@ -131,6 +154,7 @@ export function CreatePostForm() {
                     field.onChange(e)
                     handleSlugManualEdit()
                   }}
+                  disabled={isSubmitting}
                 />
               </FormControl>
               <FormDescription>
@@ -152,6 +176,7 @@ export function CreatePostForm() {
                   placeholder="Write your post content..."
                   className="min-h-[200px]"
                   {...field}
+                  disabled={isSubmitting}
                 />
               </FormControl>
               <FormDescription>
@@ -173,6 +198,7 @@ export function CreatePostForm() {
                   placeholder="Short description..."
                   className="min-h-[80px]"
                   {...field}
+                  disabled={isSubmitting}
                 />
               </FormControl>
               <FormDescription>
@@ -188,12 +214,20 @@ export function CreatePostForm() {
             type="submit"
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Creating...' : 'Create Post'}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              'Create Post'
+            )}
           </Button>
           <Button
             type="button"
             variant="outline"
             onClick={() => router.back()}
+            disabled={isSubmitting}
           >
             Cancel
           </Button>
